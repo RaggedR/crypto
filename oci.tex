@@ -1,0 +1,1642 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.3cm]{geometry}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{parskip}
+\usepackage{amsmath}
+\usepackage{float}
+\usepackage{longtable}
+\usepackage{listings}
+\usepackage{tcolorbox}
+\tcbuselibrary{listings,breakable,skins}
+
+\definecolor{accent}{RGB}{30,70,120}
+\definecolor{green}{RGB}{40,120,40}
+\definecolor{red}{RGB}{180,40,40}
+\definecolor{codebg}{RGB}{245,245,245}
+\definecolor{codeframe}{RGB}{200,200,200}
+\definecolor{codekw}{RGB}{0,100,170}
+\definecolor{codecomment}{RGB}{100,130,100}
+\definecolor{codestr}{RGB}{170,55,55}
+\definecolor{strongbg}{RGB}{230,245,230}
+\definecolor{strongframe}{RGB}{60,140,60}
+\definecolor{warnbg}{RGB}{255,250,230}
+\definecolor{warnframe}{RGB}{180,150,40}
+\definecolor{failbg}{RGB}{255,235,235}
+\definecolor{failframe}{RGB}{180,60,60}
+\definecolor{infobg}{RGB}{235,242,250}
+\definecolor{infoframe}{RGB}{70,110,170}
+\definecolor{kimbg}{RGB}{243,236,250}
+\definecolor{kimframe}{RGB}{120,70,170}
+
+\newtcolorbox{resultbox}[2][]{
+    enhanced, colback=#2bg, colframe=#2frame,
+    boxrule=0.8pt, arc=3pt, left=6pt, right=6pt, top=4pt, bottom=4pt,
+    fonttitle=\bfseries, coltitle=white, title={#1}, breakable,
+}
+\newtcolorbox{kimbox}[1]{
+    enhanced, colback=kimbg, colframe=kimframe,
+    boxrule=0.9pt, arc=3pt, left=6pt, right=6pt, top=4pt, bottom=4pt,
+    fonttitle=\bfseries, coltitle=white, title={#1}, breakable,
+}
+
+\lstdefinestyle{shell}{
+    basicstyle=\ttfamily\tiny, keywordstyle=\color{codekw},
+    numbers=left, numberstyle=\tiny\color{gray}, numbersep=7pt,
+    frame=leftline, framesep=5pt, rulecolor=\color{codeframe},
+    commentstyle=\color{codecomment}\itshape, stringstyle=\color{codestr},
+    showstringspaces=false, breaklines=true, breakatwhitespace=false,
+    columns=fullflexible, tabsize=2, numbers=none,
+    literate={\$}{{\textcolor{codekw}{\$}}}1,
+}
+\lstdefinestyle{py}{
+    language=Python, basicstyle=\ttfamily\tiny,
+    numbers=left, numberstyle=\tiny\color{gray}, numbersep=7pt,
+    frame=leftline, framesep=5pt, rulecolor=\color{codeframe},
+    keywordstyle=\color{codekw}\bfseries,
+    commentstyle=\color{codecomment}\itshape, stringstyle=\color{codestr},
+    showstringspaces=false, breaklines=true, columns=fullflexible, tabsize=4,
+    numbers=none,
+}
+\newtcolorbox{codebox}[1][]{
+    colback=codebg, colframe=codeframe, boxrule=0.5pt, arc=2pt,
+    left=2pt, right=2pt, top=2pt, bottom=2pt, breakable,
+    title={\small\ttfamily #1}, fonttitle=\bfseries\color{accent},
+}
+
+\titleformat{\section}{\large\bfseries\color{accent}}{\thesection.\ }{0.4em}{}[\titlerule]
+\titleformat{\subsection}{\normalsize\bfseries\color{accent}}{\thesubsection\ }{0.4em}{}
+\titleformat{\part}[display]{\Huge\bfseries\color{accent}}{\partname\ \thepart}{0.3em}{\titlerule\vspace{0.4em}}
+
+\hypersetup{colorlinks=true, linkcolor=accent, urlcolor=accent}
+
+\begin{document}
+
+\begin{center}
+\vspace*{1.2cm}
+{\Huge\bfseries\color{accent} Going Live}\\[1em]
+{\LARGE Deploying the Copper--Gas--Bitcoin--Sol\\[0.3em]
+Recycling Portfolio on Oracle Cloud}\\[1.8em]
+{\large A complete runbook}\\[0.8em]
+{\small Robin Langer\quad·\quad August 2026}\\[2.5em]
+\begin{minipage}{0.84\textwidth}
+\itshape\centering
+This document is written to be executed. Claude reads it and does the
+engineering. Kim does the four things that legally and physically
+cannot be delegated: proving who he is, funding the accounts, and
+authorising the keys.
+\end{minipage}
+\vspace*{1cm}
+\end{center}
+\thispagestyle{empty}
+\newpage
+
+\tableofcontents
+\newpage
+
+% ══════════════════════════════════════════════════════════════════
+\part{Orientation}
+
+\section{Who Does What}
+
+There are three actors, and the boundaries matter --- both for security
+and because some steps are legally personal to the account holder.
+
+\vspace{0.5em}
+\begin{tabular}{@{}p{2.4cm}p{11.5cm}@{}}
+    \toprule
+    \textbf{Actor} & \textbf{Responsibilities} \\
+    \midrule
+    \textbf{Kim} &
+    Identity verification (KYC) at each venue; funding accounts from his
+    own bank; generating API keys and choosing their permissions;
+    approving anything that moves money out. \emph{Cannot be delegated.}
+    \\[0.4em]
+    \textbf{Claude} &
+    Everything technical: provisioning the server, SSH, installing the
+    scripts, the virtualenv, cron, the signal engine, the execution
+    layer, the weekly reports, monitoring, and debugging.
+    \\[0.4em]
+    \textbf{Robin} &
+    Owns the strategy and the research. Reviews the go-live decision at
+    each phase gate. Holds nothing of Kim's.
+    \\
+    \bottomrule
+\end{tabular}
+
+\vspace{1em}
+\begin{resultbox}[The security model, stated once and applied throughout]{fail}
+\textbf{Kim never hands over a bank login, a password, or a
+seed phrase.} Not to Robin, not to Claude, not to anyone. Anybody who
+asks for those is either mistaken or stealing.
+
+\vspace{0.5em}
+What Kim \emph{does} hand over is a set of \textbf{API keys scoped to
+trading only, with withdrawal permission switched off and locked to
+the server's IP address}. That is the entire difference between
+``a system that can rebalance my portfolio'' and ``a system that can
+empty my account.'' An API key without withdrawal rights cannot move
+money off the venue --- the worst a total compromise achieves is bad
+trades, which is bounded, recoverable, and insurable by position
+limits.
+
+\vspace{0.5em}
+Kim's banking details are typed by Kim, into the broker's own deposit
+screen, and go nowhere else. See Section~\ref{sec:banking}.
+\end{resultbox}
+
+\section{What Already Exists}
+
+Not starting from zero. As of August 2026:
+
+\begin{itemize}[leftmargin=2em]
+    \item \textbf{An OCI instance is already running} ---
+          \texttt{ubuntu@207.211.145.30}, Ubuntu 24.04.4 LTS on
+          \texttt{aarch64} (ARM), Python 3.12.3, 23~GB RAM, 69~GB free
+          disk, \texttt{cron} active with ten existing jobs. SSH alias
+          \texttt{oci}. It hosts four AI agents in Docker plus the
+          Gateway app.
+    \item \textbf{The research is done} --- see
+          \texttt{algorithm.pdf} (the complete, self-contained code that
+          generates the portfolio comparison),
+          \texttt{kim.pdf} (the full cross-asset study) and
+          \texttt{concepts.pdf} (the primer for Kim).
+    \item \textbf{What does not exist yet} --- the execution layer (code
+          that places orders), any funded account, and a measurement of
+          how much of the copper and gas alpha survives in a tradeable
+          instrument. All three are addressed below.
+\end{itemize}
+
+\noindent
+Note: \texttt{\textasciitilde/git/oci} on Robin's Mac is a plain
+directory, \emph{not} a git repository, and there is no GitHub repo
+named \texttt{oci} under either \texttt{RaggedR} or
+\texttt{nickmeinhold}. If you want this versioned, it needs
+\texttt{git init} and a new remote.
+
+\section{Where It Runs, and the SSH Question}
+
+The reports run on \textbf{Robin's existing instance}
+(\texttt{207.211.145.30}). It is already provisioned, already has cron,
+and costs nothing. Kim needs no cloud account at all.
+
+Kim runs nothing on the server himself. He works from \textbf{his own
+machine}, where he does exactly two things: fetch the weekly report, and
+--- optionally --- log in to look around.
+
+\subsection{No, you do not hand over your SSH credentials}
+
+The question is the right one to ask, and the answer is unambiguous:
+
+\begin{resultbox}[Never share a private key. With anyone. For any reason.]{fail}
+An SSH private key is not a password that can be scoped or revoked
+per-person --- it \emph{is} your identity on every machine that trusts
+it. Sharing \texttt{\textasciitilde/.ssh/oci\_new} would give Kim
+Robin's access to Robin's server, indistinguishably from Robin, with no
+way to tell the two apart in a log and no way to revoke one without
+revoking both.
+
+\vspace{0.5em}
+That is not how SSH is meant to be used, and it is not necessary.
+\textbf{Public-key authentication is designed for exactly this
+situation.}
+\end{resultbox}
+
+\subsection{How it actually works}
+
+Keys come in pairs. The \textbf{private} half never leaves the machine
+that will connect. The \textbf{public} half is meant to be handed out
+--- that is its entire purpose --- and it is useless for anything except
+recognising its private twin.
+
+So: \textbf{Kim generates his own pair on his own laptop and sends Robin
+only the public half.} Robin adds that line to the server. Now Kim logs
+in as Kim, with a key Robin has never seen, and Robin's own key is
+untouched.
+
+\vspace{0.5em}
+\begin{tabular}{@{}p{3.4cm}p{10.6cm}@{}}
+    \toprule
+    \textbf{Property} & \textbf{Consequence} \\
+    \midrule
+    Robin's key unchanged & Nothing to rotate, nothing exposed. \\
+    Kim has his own identity & The logs distinguish them. \\
+    Revocation is one line & Delete Kim's line from
+    \texttt{authorized\_keys} and his access ends instantly, without
+    affecting Robin. \\
+    Separate Unix account & Kim's files, keys and reports live under
+    \texttt{/home/kim}, not mixed into Robin's home directory. \\
+    \bottomrule
+\end{tabular}
+
+\subsection{Kim's side: generate a key}
+
+\begin{kimbox}{Step 1: make an SSH key --- 5 minutes}
+\begin{enumerate}[leftmargin=1.6em, itemsep=3pt]
+    \item Open Terminal (macOS/Linux), or PowerShell on Windows 10+.
+    \item Run, exactly as written:
+
+    \vspace{0.3em}
+    \texttt{ssh-keygen -t ed25519 -C "kim-portfolio"}
+
+    \vspace{0.3em}
+    Press Enter to accept the default location. \textbf{Set a
+    passphrase} when asked --- if your laptop is ever stolen, that
+    passphrase is the only thing between the thief and the server.
+
+    \item Print the \textbf{public} half:
+
+    \vspace{0.3em}
+    \texttt{cat \textasciitilde/.ssh/id\_ed25519.pub}
+
+    \vspace{0.3em}
+    \item Send Robin \textbf{that whole line}. It starts with
+          \texttt{ssh-ed25519} and ends with \texttt{kim-portfolio}.
+          Email is fine for this one --- it is a public key, and it is
+          safe by design.
+
+    \item \textbf{Never send the other file}
+          (\texttt{\textasciitilde/.ssh/id\_ed25519}, no
+          \texttt{.pub}). That one is yours forever. If anyone ever
+          asks you for it, the answer is no.
+\end{enumerate}
+\end{kimbox}
+
+\subsection{Robin's side: add Kim, in one command}
+
+\begin{codebox}[Run once, from Robin's Mac]
+\begin{lstlisting}[style=shell]
+KIMKEY='ssh-ed25519 AAAA...  kim-portfolio'     # the line Kim sent
+
+ssh oci "sudo bash -s" <<EOF
+set -euo pipefail
+# A normal login user. Deliberately NOT added to the sudo group.
+id kim >/dev/null 2>&1 || sudo adduser --disabled-password --gecos "" kim
+install -d -m 700 -o kim -g kim /home/kim/.ssh
+touch /home/kim/.ssh/authorized_keys
+grep -qF "kim-portfolio" /home/kim/.ssh/authorized_keys \
+  || echo "$KIMKEY" >> /home/kim/.ssh/authorized_keys
+chmod 600 /home/kim/.ssh/authorized_keys
+chown -R kim:kim /home/kim/.ssh
+echo "kim added; sudo group membership:"; groups kim
+EOF
+\end{lstlisting}
+\end{codebox}
+
+\begin{codebox}[Kim then adds this to his own ~/.ssh/config]
+\begin{lstlisting}[style=shell]
+Host portfolio
+  HostName 207.211.145.30
+  User kim
+  IdentityFile ~/.ssh/id_ed25519
+\end{lstlisting}
+\end{codebox}
+
+\noindent
+and \texttt{ssh portfolio} works from Kim's laptop. To revoke, ever:
+
+\begin{codebox}[Revocation]
+\begin{lstlisting}[style=shell]
+ssh oci "sudo sed -i '/kim-portfolio/d' /home/kim/.ssh/authorized_keys"
+# or remove the account entirely:
+ssh oci "sudo deluser --remove-home kim"
+\end{lstlisting}
+\end{codebox}
+
+\subsection{The trust boundary, stated honestly}
+
+Two things follow from sharing a machine, and both should be said out
+loud rather than discovered later.
+
+\begin{enumerate}[leftmargin=2em]
+    \item \textbf{Robin has root. Robin can read Kim's API keys.}
+          No file permission changes this; that is what root means.
+          The arrangement rests on trust between brothers, which is
+          fine --- but it is trust, not a technical guarantee, and Kim
+          should know which one he is relying on.
+    \item \textbf{Kim gets no \texttt{sudo}.} Not as a slight: the box
+          also runs four AI agents and the Gateway app, and an
+          accidental \texttt{sudo} command from someone unfamiliar with
+          it could take those down. Kim needs nothing more than read
+          access to his own report directory.
+\end{enumerate}
+
+\vspace{0.5em}
+\begin{resultbox}[What makes this acceptable]{strong}
+The reason a shared box is tolerable here is the design decision in
+Section~\ref{sec:keys}: \textbf{the API keys have withdrawal disabled.}
+The worst outcome from any compromise --- Robin's, Kim's, or an
+agent's --- is unwanted trades, not stolen funds.
+
+\vspace{0.4em}
+If that ever stops being true, or if the amount grows past the point
+where ``I trust my brother's server'' is a sentence Kim is comfortable
+saying, the answer is a separate Always Free tenancy in Kim's own name.
+That is an hour of clicking, the scripts are host-portable, and
+\texttt{install\_oci.sh} takes an \texttt{OCI\_HOST} variable
+specifically so the move is a one-line change.
+\end{resultbox}
+
+\subsection{Kim's laptop: fetching reports}
+
+\begin{kimbox}{Step 2: get the weekly report --- 2 minutes, once}
+\begin{enumerate}[leftmargin=1.6em, itemsep=3pt]
+    \item The report is written every Monday morning whether or not
+          anyone looks. Nothing breaks if you ignore it for a month.
+    \item The numbers, without downloading anything:
+
+          \vspace{0.3em}
+          \texttt{ssh portfolio 'cat \textasciitilde/portfolio/reports/latest.json'}
+
+          \vspace{0.3em}
+    \item The PDF, copied to your Desktop:
+
+          \vspace{0.3em}
+          \texttt{scp portfolio:\textasciitilde/portfolio/reports/latest.pdf \textasciitilde/Desktop/}
+
+          \vspace{0.3em}
+    \item If you would rather not touch a terminal at all, say so ---
+          Robin can have the server email or message you the PDF on
+          Monday instead. There is no requirement for Kim to use SSH.
+\end{enumerate}
+\end{kimbox}
+
+
+\section{Step 2 --- Crypto Exchange for Bitcoin and Solana}
+\label{sec:crypto}
+
+\textbf{Why an exchange and not just a wallet:} this is the single most
+common point of confusion, and Section~\ref{sec:wallets} explains it
+properly. The short version: a \emph{wallet} holds coins; an
+\emph{exchange account} can buy and sell them. A strategy that trades
+needs an exchange account with an API. We will use a wallet too, later,
+as a vault.
+
+\textbf{Recommended venue: Kraken.} Long operating history, serves
+Australian customers with AUD deposits, lists both Bitcoin and Solana,
+and --- decisively for us --- has a straightforward API-key system with
+\emph{granular permissions} and no requirement to re-authenticate by
+hand every day. Verify at signup that it still serves your state; if
+not, the alternatives are Independent Reserve, BTC Markets, or Coinbase
+Advanced, all of which have comparable APIs.
+
+\begin{kimbox}{Step 2: open and verify a Kraken account --- 30 minutes plus 1--3 days verification}
+\begin{enumerate}[leftmargin=1.6em, itemsep=3pt]
+    \item Go to \url{https://www.kraken.com} and create an account with
+          a \textbf{unique password from your password manager}.
+    \item Turn on two-factor authentication immediately, using your
+          authenticator app. \textbf{Not} SMS --- SIM-swap attacks on
+          crypto accounts are routine.
+    \item Complete identity verification: photo ID, a selfie, and your
+          address. Choose the tier that permits AUD deposits and
+          trading. Approval usually takes hours; occasionally days.
+    \item \textbf{Do not deposit anything yet.} Funding happens at
+          Phase 3, after the system has been proven on paper.
+    \item Now create the API key. \textbf{Settings $\rightarrow$ API
+          $\rightarrow$ Add key}, and set permissions
+          \emph{exactly} as follows:
+
+          \vspace{0.4em}
+          \begin{tabular}{@{}ll@{}}
+              \toprule
+              \textbf{Permission} & \textbf{Setting} \\
+              \midrule
+              Query funds / balances       & \textcolor{green}{\textbf{ON}} \\
+              Query open \& closed orders  & \textcolor{green}{\textbf{ON}} \\
+              Create \& modify orders      & \textcolor{green}{\textbf{ON}} \\
+              Cancel / close orders        & \textcolor{green}{\textbf{ON}} \\
+              \textbf{Withdraw funds}      & \textcolor{red}{\textbf{OFF --- critical}} \\
+              Deposit funds                & \textcolor{red}{\textbf{OFF}} \\
+              Access WebSockets            & \textcolor{green}{\textbf{ON}} \\
+              Export data                  & \textcolor{green}{\textbf{ON}} \\
+              \bottomrule
+          \end{tabular}
+
+          \vspace{0.4em}
+    \item If Kraken offers to restrict the key to specific IP
+          addresses, \textbf{say yes} and enter the server address
+          Robin gives you. This means a stolen key is useless from
+          anywhere else on earth.
+    \item Kraken shows the \textbf{API Secret exactly once.} Copy both
+          the Key and the Secret straight into your password manager
+          before closing the page.
+    \item \textbf{Send Robin} the API Key and Secret --- and send them
+          \textbf{through a channel that is not email}: Signal, or a
+          password-manager shared item. Email is stored forever on
+          servers you do not control.
+\end{enumerate}
+\end{kimbox}
+
+\begin{resultbox}[Why ``Withdraw funds: OFF'' is the most important switch in this document]{strong}
+With withdrawal off, the absolute worst case --- server compromised,
+keys stolen, attacker in full control --- is that somebody makes
+stupid trades inside Kim's account. Unpleasant, bounded, and partly
+recoverable.
+
+With withdrawal on, the worst case is that the money is gone in
+ninety seconds and is never coming back. Crypto transactions are
+irreversible by design; there is no chargeback and no fraud
+department.
+
+The convenience gained by enabling withdrawal is zero, because
+nothing in this system ever needs to move money off the exchange.
+\end{resultbox}
+
+\section{Step 3 --- Broker for Copper and Natural Gas}
+\label{sec:broker}
+
+Copper and natural gas are not coins; they are commodities, traded as
+futures contracts on the Chicago Mercantile Exchange. This leg needs a
+real broker, and there is a genuine problem to solve first.
+
+\begin{resultbox}[The problem: the contracts are far too big]{fail}
+Our backtest used front-month futures prices (\texttt{HG=F},
+\texttt{NG=F}). Buying one of those contracts commits you to a great
+deal more money than the whole portfolio:
+
+\vspace{0.5em}
+\centering
+\begin{tabular}{@{}llr@{}}
+    \toprule
+    \textbf{Contract} & \textbf{Size} & \textbf{Approx.\ notional} \\
+    \midrule
+    Copper (HG)             & 25{,}000 lb    & $\sim$\$110{,}000 \\
+    Micro copper (MHG)      & 2{,}500 lb     & $\sim$\$11{,}000 \\
+    Henry Hub natgas (NG)   & 10{,}000 MMBtu & $\sim$\$29{,}000 \\
+    E-mini natgas (QG)      & 2{,}500 MMBtu  & $\sim$\$7{,}250 \\
+    \bottomrule
+\end{tabular}
+
+\vspace{0.5em}
+\raggedright
+On a \$10{,}000 portfolio, a single copper contract is eleven times
+the account. Even the micro contract is more than the entire intended
+copper allocation. Futures are leveraged instruments --- you post a
+margin deposit, not the full value --- which means a position that
+looks affordable can lose more than you deposited. \textbf{The
+backtest assumed no leverage. Trading these contracts directly would
+not be implementing the strategy; it would be implementing a much
+riskier strategy that happens to share its signals.}
+\end{resultbox}
+
+\subsection{The alternative, and its honest cost}
+
+The way to get unleveraged, correctly-sized exposure is an
+exchange-traded fund that tracks the commodity: \textbf{CPER} for
+copper, \textbf{UNG} for natural gas. These trade like shares, can be
+bought in any quantity (fractionally, at some brokers), and cannot lose
+more than you put in.
+
+The cost of that convenience is real and must be stated:
+
+\begin{enumerate}[leftmargin=2em]
+    \item \textbf{Roll decay.} These funds hold futures and must
+          repeatedly sell expiring contracts to buy later ones. When
+          later contracts are more expensive --- the usual state of
+          affairs in natural gas --- this bleeds value continuously.
+          \textbf{UNG has historically underperformed the natural gas
+          price it tracks by a wide margin.} Our backtest measured
+          \texttt{NG=F} and will therefore \emph{overstate} what UNG
+          delivers. The strategy's saving grace is that it holds gas
+          only about half the time, but the drag is not eliminated,
+          merely reduced.
+    \item \textbf{Tax complexity.} Both are structured as commodity
+          pools and issue US K-1 style tax documents rather than
+          ordinary dividend statements. For an Australian taxpayer this
+          is a genuine accounting nuisance. Ask an accountant before
+          Phase 3.
+    \item \textbf{Not all brokers permit them.} Verify at signup.
+\end{enumerate}
+
+\begin{resultbox}[Recommendation, stated plainly]{warn}
+\textbf{Trade the crypto leg for real; keep the copper and gas leg on
+paper until the instrument question is settled.}
+
+The Bitcoin and Solana legs are clean: spot, unleveraged, one venue,
+a good API. They can go live as soon as Kim is verified and funded.
+
+The copper and gas legs have an unresolved instrument-selection
+problem --- futures are too large, and the ETFs carry decay and tax
+costs the backtest never measured. Running them on paper for a quarter
+costs nothing and tells us how much of the backtested alpha actually
+survives in the tradeable instrument. \textbf{That measurement should
+be made before Kim's money is committed, not after.}
+\end{resultbox}
+
+\subsection{Which broker}
+
+\textbf{Position: Interactive Brokers.} It is the standard answer ---
+access to CME futures, US ETFs, an Australian entity, and a
+well-documented API that \texttt{ib\_async} speaks fluently.
+
+\textbf{Objection.} IBKR's API is built around a desktop Java
+application (Trader Workstation or IB Gateway) that must be running for
+the API to answer, and its session requires two-factor
+re-authentication roughly daily. On a headless ARM server this means a
+Java gateway under a virtual framebuffer, plus Kim tapping ``approve''
+on his phone most days. For a system whose entire selling point is that
+it runs unattended, a daily human tap is a design flaw, not a detail.
+
+\textbf{Resolution.} Choose the broker by what the automation needs,
+not by reputation. For the ETF route --- which is what we recommend
+--- a broker with plain API-key authentication and no daily re-auth is
+strictly better. \textbf{Alpaca} is the natural fit: pure REST, keys
+that do not expire daily, fractional shares, a built-in paper-trading
+environment that is API-identical to live, and support for
+US-listed ETFs. Keep IBKR in reserve for the day we decide we
+genuinely want futures exposure and accept the operational burden.
+
+\textbf{Practical difference:} Alpaca can be automated tonight, in
+paper mode, with no account at all. IBKR cannot be automated unattended
+without solving the 2FA problem first.
+
+\begin{kimbox}{Step 3: open a broker account --- 30 minutes plus verification}
+\begin{enumerate}[leftmargin=1.6em, itemsep=3pt]
+    \item \textbf{Wait.} This step is deliberately last and is not
+          needed for Phases 1--2. Do not open it until Robin confirms
+          the instrument decision.
+    \item When told to proceed, go to \url{https://alpaca.markets},
+          create an account, and confirm during signup that Australian
+          residents are accepted and that \texttt{CPER} and
+          \texttt{UNG} are tradeable. If either answer is no, tell
+          Robin and stop --- do not improvise a substitute instrument.
+    \item Complete identity verification as in Step 2. Enable
+          two-factor authentication.
+    \item Generate API keys for the \textbf{paper} environment first
+          and send those to Robin. Paper keys cannot touch money, so
+          they are safe to hand over early and they let Claude prove
+          the whole pipeline works.
+    \item Generate \textbf{live} keys only when Robin confirms
+          Phase~3. Restrict to trading; no funds-transfer permission;
+          IP-restricted if offered.
+    \item \textbf{Send Robin} the key and secret over Signal, never
+          email. Label clearly which are paper and which are live.
+\end{enumerate}
+\end{kimbox}
+
+\section{Step 4 --- Funding, and Your Banking Details}
+\label{sec:banking}
+
+\begin{kimbox}{Step 4: funding --- only at Phase 3, and only by you}
+\begin{enumerate}[leftmargin=1.6em, itemsep=3pt]
+    \item Decide the amount, and apply one test: \textbf{if this money
+          vanished entirely, would anything in your life break?} If
+          yes, the number is too big. Read the drawdown table in
+          \texttt{concepts.pdf} before answering --- an $80\%$
+          temporary loss is inside the historical range of what this
+          strategy does.
+    \item Log in to the venue \textbf{yourself}. Find Deposit. Choose
+          AUD bank transfer (PayID/Osko is usually instant; a normal
+          transfer takes a day).
+    \item \textbf{Type your own bank details into the venue's deposit
+          screen.} Copy the reference code exactly --- deposits
+          without it get held up.
+    \item Transfer from your bank as you would to any payee. The first
+          transfer may be held for review; this is routine.
+    \item \textbf{Tell Robin the amount and the date. Send no account
+          numbers, no BSB, no bank password, no card number.} Nothing
+          in this system needs them, and nobody who does need them
+          would ask you through a person.
+    \item Start with the smallest amount that makes the exercise real
+          --- a few hundred dollars, not the full allocation. Phase 4
+          is where the size increases, after Phase 3 has run clean.
+\end{enumerate}
+\end{kimbox}
+
+\begin{resultbox}[A note on whose money this is]{warn}
+The accounts are in \textbf{Kim's own name}, funded from Kim's own
+bank, and Kim can close them or revoke the keys at any moment without
+asking anyone. That is deliberate, and it should stay that way.
+
+It keeps custody with Kim, and it keeps the arrangement clearly on the
+right side of a real regulatory line: in Australia, managing other
+people's money as a business generally requires an Australian
+Financial Services licence. A brother sharing research and
+infrastructure is not that. Pooled funds, a fee, or discretion over
+someone else's account would be. If this ever grows past two brothers
+and a shared spreadsheet, get advice first.
+\end{resultbox}
+
+% ══════════════════════════════════════════════════════════════════
+\part{Wallets, Accounts, and Keys}
+
+\section{Wallet Versus Exchange Account}
+\label{sec:wallets}
+
+Four different things get called ``a wallet,'' and conflating them is
+how people lose money.
+
+\vspace{0.5em}
+\begin{tabular}{@{}p{3.0cm}p{5.2cm}p{5.4cm}@{}}
+    \toprule
+    \textbf{Thing} & \textbf{What it is} & \textbf{Can it trade?} \\
+    \midrule
+    Exchange account &
+    An account at a company (Kraken) that holds coins on your behalf and
+    matches your buy and sell orders. &
+    \textbf{Yes} --- and it is the only one of these four that can.
+    This is what the strategy uses. \\[0.4em]
+    Software wallet &
+    An app holding your private keys (Phantom for Solana, Sparrow for
+    Bitcoin). You control the coins directly. &
+    No. It can send and receive, not trade. \\[0.4em]
+    Hardware wallet &
+    A dedicated device (Ledger, Trezor) keeping keys offline. The
+    gold standard for storage. &
+    No. \\[0.4em]
+    Paper backup &
+    Twelve or twenty-four words written down. \emph{Is} the wallet, in
+    every sense that matters. &
+    No. \\
+    \bottomrule
+\end{tabular}
+
+\vspace{0.5em}
+
+\begin{resultbox}[The one rule about seed phrases]{fail}
+A seed phrase \textbf{is} the money. Anyone holding those words owns
+the coins, permanently and irreversibly.
+
+\vspace{0.4em}
+Therefore: write it on paper, never photograph it, never type it into
+anything except the wallet app that generated it, never put it in
+email or cloud storage, and \textbf{never send it to Robin, to Claude,
+or to any person or program that asks.} There is no legitimate reason
+for anyone to see it. Every message that has ever asked for one was a
+theft in progress.
+\end{resultbox}
+
+\subsection{So do we need a wallet at all?}
+
+For trading, no. For safety, yes --- eventually.
+
+Leaving coins on an exchange means trusting the exchange to stay
+solvent and unhacked, and the history of the industry is unkind on both
+counts. The rule of thumb: the exchange holds the working capital the
+strategy is actively trading; a hardware wallet holds anything you have
+decided to keep.
+
+\begin{kimbox}{Optional Step 5: a hardware wallet --- do this at Phase 4, not now}
+\begin{enumerate}[leftmargin=1.6em, itemsep=3pt]
+    \item Buy a Ledger or Trezor \textbf{direct from the
+          manufacturer's own website}. Never from eBay, Amazon
+          marketplace, or a third-party seller --- tampered devices with
+          pre-generated seed phrases are a known and effective attack.
+    \item Initialise it yourself. It will show you a seed phrase.
+          Write it on paper. Store it somewhere a burglar and a house
+          fire would not both reach.
+    \item Bitcoin: use the device's built-in Bitcoin app.
+          Solana: use the device together with Phantom
+          (\url{https://phantom.app}), which supports hardware signing.
+    \item Send a \textbf{small test amount} first --- \$20 --- and
+          confirm it arrives before moving anything meaningful.
+          Crypto addresses have no ``are you sure?'' and no recall.
+    \item This wallet is a vault, not part of the trading system. The
+          scripts never see it and never need to.
+\end{enumerate}
+\end{kimbox}
+
+\section{Where Keys Live on the Server}
+\label{sec:keys}
+
+Keys go in one file, readable only by the owning user, and are read from
+the environment. Never in the scripts, never in git.
+
+\begin{codebox}[Claude: create /home/ubuntu/portfolio/.env]
+\begin{lstlisting}[style=shell]
+# On the server. Note the permissions -- this matters.
+install -m 700 -d /home/ubuntu/portfolio
+cat > /home/ubuntu/portfolio/.env <<'EOF'
+# Kraken -- trade permissions only, withdrawal DISABLED
+KRAKEN_API_KEY=...
+KRAKEN_API_SECRET=...
+
+# Alpaca -- paper endpoint until Phase 3
+ALPACA_API_KEY=...
+ALPACA_API_SECRET=...
+ALPACA_BASE_URL=https://paper-api.alpaca.markets
+
+# Risk limits, enforced in code (see section on the execution layer)
+MAX_ORDER_USD=500
+SOL_CAP=0.25
+LIVE_TRADING=0
+EOF
+chmod 600 /home/ubuntu/portfolio/.env
+\end{lstlisting}
+\end{codebox}
+
+\begin{resultbox}[Rules for handling Kim's keys]{fail}
+\begin{enumerate}[leftmargin=1.5em, topsep=2pt]
+    \item \texttt{chmod 600}. Never world-readable.
+    \item Never committed to git. Add \texttt{.env} to
+          \texttt{.gitignore} \emph{before} the first commit, not after
+          --- git remembers.
+    \item Never echoed into a terminal, a log file, or an error
+          message. Log the fact of a request, never its credentials.
+    \item Never pasted into a chat transcript, including this one.
+    \item Rotated if there is any doubt at all. Rotation is five
+          minutes of Kim's time; a leak is permanent.
+    \item \texttt{LIVE\_TRADING=0} is the master switch. The
+          execution layer must refuse to place a real order unless it
+          is explicitly \texttt{1}. Default closed.
+\end{enumerate}
+\end{resultbox}
+
+% ══════════════════════════════════════════════════════════════════
+\part{Claude's Work}
+
+Everything from here is executable by Claude without Kim present.
+
+\section{SSH: Getting In}
+
+The existing instance is at \texttt{ubuntu@207.211.145.30}, with the
+alias already configured in \texttt{\textasciitilde/.ssh/config}:
+
+\begin{codebox}[~/.ssh/config]
+\begin{lstlisting}[style=shell]
+Host oci
+  HostName 207.211.145.30
+  User ubuntu
+  IdentityFile ~/.ssh/oci_new
+\end{lstlisting}
+\end{codebox}
+
+\begin{codebox}[Connect, and confirm what you are on]
+\begin{lstlisting}[style=shell]
+ssh oci                      # interactive
+ssh oci 'uname -m; lsb_release -ds; python3 --version'
+# expect: aarch64 / Ubuntu 24.04.4 LTS / Python 3.12.3
+\end{lstlisting}
+\end{codebox}
+
+For a new instance (Option B), the key is generated locally and the
+public half is handed to Oracle at instance creation:
+
+\begin{codebox}[New host setup]
+\begin{lstlisting}[style=shell]
+ssh-keygen -t ed25519 -f ~/.ssh/kim_oci -C "kim-portfolio"
+cat ~/.ssh/kim_oci.pub          # paste into the OCI console
+
+cat >> ~/.ssh/config <<'EOF'
+
+Host kim-oci
+  HostName <NEW_PUBLIC_IP>
+  User ubuntu
+  IdentityFile ~/.ssh/kim_oci
+EOF
+
+ssh kim-oci 'echo ok'
+\end{lstlisting}
+\end{codebox}
+
+\begin{resultbox}[Two things that break new OCI instances]{warn}
+\begin{enumerate}[leftmargin=1.5em, topsep=2pt]
+    \item \textbf{Security lists.} OCI blocks inbound traffic by
+          default at the \emph{virtual network} level, independently of
+          the host firewall. If SSH hangs rather than refusing, the
+          ingress rule for port 22 is missing from the subnet's
+          security list. Nothing on the host will fix this.
+    \item \textbf{Ubuntu's iptables.} Oracle's Ubuntu images ship with
+          a restrictive \texttt{iptables} ruleset that surprises people
+          who have already opened the security list. Check
+          \texttt{sudo iptables -L INPUT -n} before concluding the
+          network is at fault.
+\end{enumerate}
+Outbound is open by default, which is all the scripts need.
+\end{resultbox}
+
+\section{Installing the Scripts}
+
+One command from the Mac. The installer is idempotent --- re-running it
+is the normal way to deploy a change.
+
+\begin{codebox}[From the Mac]
+\begin{lstlisting}[style=shell]
+cd ~/git/andy/crypto/portfolio
+bash install_oci.sh          # or: OCI_HOST=kim-oci bash install_oci.sh
+\end{lstlisting}
+\end{codebox}
+
+\noindent It performs, in order:
+
+\begin{enumerate}[leftmargin=2em]
+    \item Verifies SSH reachability and fails loudly if not.
+    \item Creates \texttt{/home/ubuntu/portfolio/\{reports,logs\}}.
+    \item Copies \texttt{signals.py}, \texttt{weekly\_report.py},
+          \texttt{run\_weekly.sh}.
+    \item Builds a virtualenv and installs \texttt{numpy}, 
+          \texttt{pandas}, \texttt{matplotlib}, \texttt{yfinance}.
+    \item \textbf{Runs one report immediately}, so a broken install is
+          discovered now rather than next Monday.
+    \item Installs the weekly cron entry.
+\end{enumerate}
+
+\begin{resultbox}[ARM notes]{warn}
+The instance is \texttt{aarch64}. \texttt{numpy}, \texttt{pandas} and
+\texttt{matplotlib} all publish ARM wheels, so the install is a
+download rather than a compile --- but it is slower than on x86 and
+wants \texttt{python3-dev} present in case anything does fall back to
+source. The installer handles this.
+
+Use a virtualenv, not \texttt{pip install --user}: Ubuntu 24.04
+enforces PEP~668 and will refuse to modify the system Python.
+
+This ARM detail is also the concrete reason IBKR's Java gateway is
+awkward here (Section~\ref{sec:broker}) --- its installer bundles an
+x86 runtime.
+\end{resultbox}
+
+\section{The Cron Job}
+
+The house style on this box --- visible in the ten existing entries ---
+is absolute paths and appended logs. We match it.
+
+\begin{codebox}[crontab -e]
+\begin{lstlisting}[style=shell]
+# Recycling portfolio weekly report
+# Sunday 21:15 UTC = Monday 07:15 AEST -- before the working week,
+# after the US Friday close has settled into the data.
+15 21 * * 0 /home/ubuntu/portfolio/run_weekly.sh >> /home/ubuntu/portfolio/logs/cron.log 2>&1
+\end{lstlisting}
+\end{codebox}
+
+The installer adds this for you, stripping any previous copy of the same
+line first so repeated runs cannot produce duplicates.
+
+\begin{resultbox}[Cron facts that cause silent failures]{warn}
+\begin{enumerate}[leftmargin=1.5em, topsep=2pt]
+    \item \textbf{Cron's \texttt{PATH} is nearly empty} and it does not
+          read your shell profile. Every path in a cron job must be
+          absolute --- including the Python interpreter. This is why
+          \texttt{run\_weekly.sh} invokes
+          \texttt{./venv/bin/python} rather than \texttt{python3}.
+    \item \textbf{The server runs UTC.} Confirm with \texttt{date -u}
+          and convert deliberately; do not assume local time.
+    \item \textbf{Without redirection, output is emailed} --- and on a
+          box with no mail transport, silently discarded. Always
+          \texttt{>> logfile 2>\&1}.
+    \item \textbf{A cron job that fails is invisible.} Check
+          \texttt{grep CRON /var/log/syslog} for whether it fired at
+          all, and the job's own log for what happened when it did.
+    \item \textbf{Test without waiting a week:} run
+          \texttt{/home/ubuntu/portfolio/run\_weekly.sh} by hand, then
+          verify with \texttt{env -i /bin/bash -c
+          '/home/ubuntu/portfolio/run\_weekly.sh'}, which reproduces
+          cron's bare environment. Most cron bugs appear only under
+          that second form.
+\end{enumerate}
+\end{resultbox}
+
+\section{The Heartbeat: Not Being Reclaimed}
+
+Oracle gives away Always Free instances, and reserves the right to take
+back the ones nobody is using. A box that runs a script for four seconds
+a week looks, to a monitoring system, exactly like a box nobody is
+using.
+
+\begin{resultbox}[Oracle's idle-reclamation rule, and the loophole in it]{warn}
+An Always Free compute instance becomes a candidate for reclamation
+when, across a \textbf{7-day window}, \textbf{all} of the following
+hold:
+
+\vspace{0.4em}
+\centering
+\begin{tabular}{@{}lr@{}}
+    \toprule
+    \textbf{Metric (95th percentile)} & \textbf{Threshold} \\
+    \midrule
+    CPU utilisation                     & $< 20\%$ \\
+    Network utilisation                 & $< 20\%$ \\
+    Memory utilisation (Ampere A1 only) & $< 20\%$ \\
+    \bottomrule
+\end{tabular}
+
+\vspace{0.6em}
+\raggedright
+The important word is \textbf{all}. The test is a conjunction, so
+\textbf{defeating any single criterion is sufficient} --- there is no
+need to hold three metrics up. CPU is by far the cheapest to move, so
+that is the one we move.
+\end{resultbox}
+
+\subsection{How the keepalive works}
+
+\texttt{keepalive.sh} runs every 30 minutes and burns one core for five
+minutes. That puts roughly a sixth of all samples near $100\%$ on one
+core --- comfortably enough to hold the 95th percentile above $20\%$,
+with a wide margin for a missed run.
+
+It burns that core at \texttt{nice -n 19} and \texttt{ionice -c3}, the
+lowest possible scheduling priority for both CPU and disk. In practice
+the loop is descheduled the instant anything real wants the processor:
+the four AI agents and the Gateway app never wait on it. We are
+consuming \emph{idle} capacity --- which is exactly the capacity Oracle
+is measuring.
+
+\begin{codebox}[The cron pair]
+\begin{lstlisting}[style=shell]
+# Recycling portfolio: weekly report + keep instance from being reclaimed
+15 21 * * 0   /home/ubuntu/portfolio/run_weekly.sh >> /home/ubuntu/portfolio/logs/cron.log 2>&1
+*/30 * * * *  /home/ubuntu/portfolio/keepalive.sh  >> /home/ubuntu/portfolio/logs/keepalive.log 2>&1
+\end{lstlisting}
+\end{codebox}
+
+\begin{resultbox}[Robin's box probably does not need this. Install it anyway.]{strong}
+The existing instance runs four AI agents, the Gateway app and a
+\texttt{*/15} cron job, so its CPU is unlikely to look idle. The
+keepalive is insurance, and it is nearly free.
+
+\vspace{0.4em}
+It matters more than it looks, because of what happens on the day it is
+needed: the agents go quiet during a lull, Oracle's 7-day window closes,
+the instance is stopped, and \textbf{the weekly reports simply stop
+arriving.} Nothing errors. Nothing alerts. The failure mode is
+\emph{silence} --- which is precisely the failure mode a report you
+glance at once a week is worst at revealing.
+\end{resultbox}
+
+\subsection{The other heartbeat: knowing it is alive}
+
+Two different things get called a heartbeat, and we want both. The
+keepalive above beats \emph{outward}, convincing Oracle we exist. We
+also want one beating \emph{inward}, convincing us the job still runs.
+
+So \texttt{keepalive.sh} writes \texttt{heartbeat.txt} every 30 minutes
+\emph{before} it burns anything, so the timestamp lands even if the burn
+is killed. \texttt{healthcheck.sh} reads that file, plus the report
+directory and the crontab, and answers the only question that matters:
+
+\begin{codebox}[Run this whenever you wonder]
+\begin{lstlisting}[style=shell]
+$ ssh oci '/home/ubuntu/portfolio/healthcheck.sh'
+
+Portfolio health  2026-08-27T00:15:02Z
+
+  keepalive              ok - 12 min ago
+  weekly report          ok - 1 day(s) old
+  report count           1 archived
+  signals                no data errors
+  signals                mode: paper
+  cron: report           installed
+  cron: keepalive        installed
+  disk                   69G free of 145G (53% used)
+
+HEALTHY
+\end{lstlisting}
+\end{codebox}
+
+It exits non-zero when anything needs attention, so it composes with
+anything that watches exit codes. The checks that fire in practice: a
+stale keepalive (instance stopped, or cron broken), an overdue report
+(more than 8 days old), and data-feed errors recorded by the signal
+engine.
+
+\begin{resultbox}[Free-tier hygiene, restated because it is the only thing that costs money]{fail}
+Compute on the Always Free tier is free and stays free.
+\textbf{Storage is capped at 200~GB across the entire tenancy ---
+including volumes attached to nothing at all.}
+
+On 3 June 2026 four abandoned 47~GB rescue boot volumes pushed Robin's
+tenancy to 338~GB and produced roughly AUD~\$8/month of charges on what
+should have been a \$0 bill. \texttt{healthcheck.sh} reports disk usage
+for this reason. If a bill ever appears, look for orphaned volumes
+first --- the commands are in Section~\ref{sec:manifest}.
+\end{resultbox}
+
+\section{The Signal Engine}
+
+\texttt{signals.py} computes each asset's momentum ratio with arithmetic
+\emph{identical} to \texttt{momentum\_single.py}, so live signals and
+backtested signals cannot silently diverge. It then applies the
+recycling rule with the Solana cap.
+
+\begin{codebox}[Verified output, run 2026-08-27]
+\begin{lstlisting}[style=shell]
+$ ./venv/bin/python signals.py
+
+Signals as of 2026-08-26T21:32:07+00:00  (3/4 active)
+
+Asset    Symbol           Close    Ratio  Signal   Weight  Trade as
+----------------------------------------------------------------------
+COPPER   HG=F              6.70    0.817    cash     0.0%  CPER @ IBKR
+NATGAS   NG=F              2.90    1.102    HOLD    37.5%  UNG @ IBKR
+BTC      BTC-USD      78,659.15    1.184    HOLD    37.5%  XBT/USD @ KRAKEN
+SOL      SOL-USD          97.59    1.302    HOLD    25.0%  SOL/USD @ KRAKEN (capped)
+----------------------------------------------------------------------
+CASH                                                 0.0%
+\end{lstlisting}
+\end{codebox}
+
+Note that the cap is binding in this very sample: three assets are
+active, so equal weighting would give Solana $33.3\%$, and the cap
+holds it to $25\%$ with the excess going to copper and gas. The
+mechanism is not hypothetical.
+
+\subsection{Two deliberate design decisions}
+
+\begin{enumerate}[leftmargin=2em]
+    \item \textbf{Fail-safe on missing data.} If a price feed fails, the
+          asset's signal is recorded as \emph{off} and the money stays
+          in cash. A data outage can therefore cost us an opportunity;
+          it can never cause an accidental position. Errors are listed
+          in the report so a silent outage cannot masquerade as a
+          genuine ``all clear.''
+    \item \textbf{Signal instrument $\neq$ traded instrument.} Momentum
+          is computed on \texttt{HG=F} and \texttt{NG=F} --- exactly what
+          the study measured --- while orders would be placed in
+          \texttt{CPER}/\texttt{UNG}. Conflating the two would quietly
+          invalidate the research, so the mapping is explicit in the
+          \texttt{ASSETS} table.
+\end{enumerate}
+
+\section{The Execution Layer (Not Yet Written)}
+\label{sec:exec}
+
+This is the only substantial piece of code still outstanding, and it
+should not be written until Phase 2 has run clean. The specification:
+
+\begin{enumerate}[leftmargin=2em]
+    \item Read target weights from \texttt{signals.py}.
+    \item Read actual holdings from each venue.
+    \item Compute the difference, and \textbf{only trade if a position
+          is off target by more than a threshold} (5\% of portfolio
+          value is a sensible starting point). Without this, tiny daily
+          drift generates constant fee-burning churn.
+    \item Place market orders, sized to the smaller of the required
+          trade and \texttt{MAX\_ORDER\_USD}.
+    \item Refuse to do anything at all unless
+          \texttt{LIVE\_TRADING=1}. Log the orders it \emph{would} have
+          placed otherwise --- that log is how we validate it.
+    \item Write \texttt{accounts.json} after every run, which is what
+          the weekly report reads to reconcile paper against real.
+\end{enumerate}
+
+\begin{codebox}[Sketch: reading balances from Kraken via ccxt]
+\begin{lstlisting}[style=py]
+import os, ccxt
+
+kraken = ccxt.kraken({
+    "apiKey": os.environ["KRAKEN_API_KEY"],
+    "secret": os.environ["KRAKEN_API_SECRET"],
+    "enableRateLimit": True,
+})
+
+balance = kraken.fetch_balance()          # needs "Query funds" only
+print({k: v for k, v in balance["total"].items() if v})
+
+# Placing an order needs "Create & modify orders". Guarded:
+if os.environ.get("LIVE_TRADING") != "1":
+    raise SystemExit("LIVE_TRADING is not 1 -- refusing to place orders")
+\end{lstlisting}
+\end{codebox}
+
+\begin{resultbox}[Build it in this order, and not another]{strong}
+\begin{enumerate}[leftmargin=1.5em, topsep=2pt]
+    \item Read-only first. Fetch balances and prices for a week.
+          Confirm the numbers match what Kim sees when he logs in.
+    \item Then dry-run orders --- computed, logged, never sent ---
+          for a week. Read every line.
+    \item Then live orders capped at \$50, for a week.
+    \item Then raise the cap.
+\end{enumerate}
+Each stage catches a category of bug the next stage would make
+expensive. Skipping stage 1 is how people discover their position
+sizing was wrong by a factor of a hundred.
+\end{resultbox}
+
+% ══════════════════════════════════════════════════════════════════
+\part{The Weekly Report}
+
+\section{What It Produces}
+
+Every Monday morning the server writes a two-page PDF and a JSON
+summary. The PDF is rendered with \texttt{matplotlib}, deliberately
+\emph{not} LaTeX --- the server needs no TeX installation, and there is
+no compile step that can fail at 7am.
+
+\textbf{Page 1:} headline tiles (NAV, weekly change, return since
+inception, maximum drawdown); the signal table with each asset's ratio,
+target weight and traded instrument; a bar showing where the money
+should be right now; and a notes block flagging paper-versus-live mode,
+data errors, and the Solana cap.
+
+\textbf{Page 2:} the NAV curve since inception, the drawdown curve, and
+a timeline strip showing which assets were held when.
+
+\begin{codebox}[Verified output, run 2026-08-27]
+\begin{lstlisting}[style=shell]
+$ ./venv/bin/python weekly_report.py --outdir ~/portfolio/reports
+Wrote /home/ubuntu/portfolio/reports/portfolio-2026-W35.pdf
+  Paper NAV $11,862.83  week +10.81%  total +18.63%  maxDD -2.9%
+  Mode: paper   Active: 3/4
+\end{lstlisting}
+\end{codebox}
+
+\section{The Design Decision That Matters}
+
+\begin{resultbox}[The report is stateless]{strong}
+Every run rebuilds the \emph{entire} equity curve from scratch, from
+first principles, back to inception. Nothing is carried forward
+between runs.
+
+This costs a few seconds of ARM CPU per week, and buys a property
+worth far more than that: \textbf{a missed week, a crashed run, a
+truncated file, or a server rebuild cannot cause the tracked NAV to
+drift.} An incrementally-updated ledger accumulates errors silently
+and is only discovered when the number is already wrong. A recomputed
+one is self-healing --- correct this week regardless of what happened
+last week.
+
+The same reasoning is why \texttt{run\_weekly.sh} keeps the last 52
+reports rather than overwriting: the history is evidence, and
+evidence should be append-only.
+\end{resultbox}
+
+\section{How Claude Fetches It}
+
+Three ways, in increasing order of convenience:
+
+\begin{codebox}[Getting at the report]
+\begin{lstlisting}[style=shell]
+# 1. The one-liner Claude will normally use: numbers, no file transfer.
+ssh oci 'cat /home/ubuntu/portfolio/reports/latest.json'
+
+# 2. Copy the PDF back and open it.
+bash ~/git/andy/crypto/portfolio/fetch_report.sh          # latest
+bash ~/git/andy/crypto/portfolio/fetch_report.sh 2026-W35 # a given week
+
+# 3. Look around.
+ssh oci 'ls -lt /home/ubuntu/portfolio/reports/ | head'
+ssh oci 'tail -40 /home/ubuntu/portfolio/logs/cron.log'
+\end{lstlisting}
+\end{codebox}
+
+\texttt{latest.json} exists precisely so Claude does not have to parse a
+PDF to answer ``how is it going?''. It carries the week, the mode
+(paper or live), every ratio, every weight, and the summary statistics.
+\texttt{fetch\_report.sh} prints a one-line summary and opens the PDF in
+Skim.
+
+\begin{codebox}[latest.json, abridged]
+\begin{lstlisting}[style=shell]
+{
+  "week": "2026-W35",
+  "mode": "paper",
+  "stats": { "nav": 11862.83, "week_return": 0.1081,
+             "total_return": 0.1863, "max_dd": -0.029, "sharpe": ... },
+  "signals": { "COPPER": false, "NATGAS": true, "BTC": true, "SOL": true },
+  "ratios":  { "COPPER": 0.817, "NATGAS": 1.102, "BTC": 1.184, "SOL": 1.302 },
+  "weights": { "COPPER": 0.0, "NATGAS": 0.375, "BTC": 0.375, "SOL": 0.25 },
+  "cash": 0.0, "errors": []
+}
+\end{lstlisting}
+\end{codebox}
+
+% ══════════════════════════════════════════════════════════════════
+\part{Going Live}
+
+\section{Choosing the Solana Cap}
+\label{sec:cap}
+
+This was an open question when the runbook was drafted, and it is now
+closed. \texttt{cap\_sweep.py} regenerates momentum for all four assets
+from source prices --- the saved \texttt{timing\_*.csv} files could not
+be used, see the warning below --- builds the recycling portfolio for a
+range of caps, and reports the trade-off.
+
+Period 19 April 2021 to 26 August 2026 (1{,}956 days, 5.35 years),
+\$10{,}000 start, signals lagged one day, no fees.
+
+\vspace{0.5em}
+\centering
+{\small
+\begin{tabular}{@{}lrrrrr@{}}
+    \toprule
+    \textbf{SOL cap} & \textbf{Final} & \textbf{CAGR} & \textbf{Sharpe} & \textbf{Sortino} & \textbf{Max DD} \\
+    \midrule
+    $0\%$ (no SOL)   & \$95{,}575  & $52.5\%$ & $1.26$ & $1.43$ & $-35.3\%$ \\
+    $10\%$           & \$119{,}632 & $59.0\%$ & $1.37$ & $1.71$ & $-35.1\%$ \\
+    $15\%$           & \$132{,}434 & $62.0\%$ & $1.41$ & $1.79$ & $-35.2\%$ \\
+    $17.5\%$         & \$138{,}973 & $63.5\%$ & $1.42$ & $1.82$ & $-35.3\%$ \\
+    $20\%$           & \$145{,}579 & $64.9\%$ & $1.43$ & $1.86$ & $-36.3\%$ \\
+    \textbf{$25\%$}  & \textbf{\$158{,}908} & \textbf{$67.7\%$} & \textbf{$1.44$} & \textbf{$1.91$} & \textbf{$-38.7\%$} \\
+    $33.3\%$         & \$178{,}679 & $71.4\%$ & $1.44$ & $1.94$ & $-42.8\%$ \\
+    $50\%$           & \$169{,}259 & $69.6\%$ & $1.35$ & $1.81$ & $-50.6\%$ \\
+    \textcolor{red}{no cap} & \textcolor{red}{\$114{,}144} & \textcolor{red}{$57.6\%$}
+                     & \textcolor{red}{$1.08$} & \textcolor{red}{$1.37$} & \textcolor{red}{$-75.4\%$} \\
+    \bottomrule
+\end{tabular}
+}
+
+\raggedright
+\vspace{0.8em}
+
+\begin{resultbox}[The result nobody expected: the cap is not a trade-off]{strong}
+\textbf{The uncapped rule is the worst row in the table.} Not the
+riskiest-but-highest-returning --- the worst, on both axes at once. It
+makes less money than a $10\%$ cap and takes double the drawdown.
+\emph{Every} cap between $10\%$ and $50\%$ dominates it.
+
+\vspace{0.5em}
+The mechanism is volatility drag. Solana signals alone on
+\textbf{$24.1\%$ of its active days}, and on those days the uncapped
+rule puts the entire portfolio into an asset that has historically
+fallen $96\%$. Occasionally concentrating everything into that
+destroys the compounding, however good the asset is on average. This is
+the $-50\%$-then-$+50\%$ arithmetic from \texttt{concepts.pdf},
+operating at portfolio scale.
+
+\vspace{0.5em}
+So the cap does not buy safety at the cost of return. \textbf{It buys
+both.}
+\end{resultbox}
+
+\subsection{Why 25\%, given the plateau}
+
+Sharpe is essentially flat from $20\%$ to $33\%$ ($1.43$ to $1.45$) ---
+those differences are noise, not signal. Return keeps climbing to
+$33\%$; drawdown climbs with it, and faster beyond $25\%$. So the choice
+inside the plateau is a judgement, and it should not be made by picking
+the maximum of anything.
+
+\vspace{0.5em}
+A split-half check is the reason for caution:
+
+\vspace{0.5em}
+\centering
+\begin{tabular}{@{}lll@{}}
+    \toprule
+    & \textbf{First half (to Dec 2023)} & \textbf{Second half (to Aug 2026)} \\
+    \midrule
+    Best Sharpe & $33\%$ & $15\%$ \\
+    Best Calmar & $33\%$ & $27.5\%$ \\
+    Best return & $33\%$ & $50\%$ \\
+    Uncapped    & disastrous ($-75\%$ DD, Sharpe $0.83$) & barely differs from capped \\
+    \bottomrule
+\end{tabular}
+
+\raggedright
+\vspace{0.8em}
+
+The two halves disagree about the optimum and agree about everything
+that matters: caps in the $15$--$33\%$ band beat both extremes, and
+uncapped is only catastrophic in the half that contained a crash. A
+number tuned to the full-period maximum would be fitting the 2022
+drawdown.
+
+\begin{resultbox}[Decision: 25\%]{strong}
+\begin{enumerate}[leftmargin=1.5em, topsep=2pt]
+    \item \textbf{It is not a fitted parameter.} $25\%$ is the natural
+          equal share of four assets. The cap therefore only ever binds
+          \emph{downward} --- it can never force us to hold more Solana
+          than plain diversification would. That is the strongest
+          available defence against overfitting: the number comes from
+          the portfolio's structure, not from the data.
+    \item It sits inside the flat region of the Sharpe curve, so it
+          gives up nothing measurable in risk-adjusted terms.
+    \item It adds $66\%$ to the final value over the three-asset
+          portfolio (\$95{,}575 $\rightarrow$ \$158{,}908) while moving
+          maximum drawdown only from $-35.3\%$ to $-38.7\%$.
+    \item Both halves of the sample support it.
+\end{enumerate}
+
+\vspace{0.5em}
+\textbf{If Kim wants a gentler ride,} $20\%$ is the defensible
+alternative: the best Calmar ratio in the table, drawdown a little over
+a point shallower, at the cost of about $8\%$ of the final value. That
+is a preference, not a correction --- both are right.
+
+\vspace{0.4em}
+\textbf{Do not raise it above $33\%$.} Past that, drawdown grows and
+return stops improving. $\texttt{SOL\_CAP}$ in \texttt{.env} exists so
+this is one line to change, and \texttt{signals.py} enforces it on
+every run.
+\end{resultbox}
+
+\begin{resultbox}[The data problem this uncovered]{fail}
+The saved \texttt{timing\_*.csv} files in
+\texttt{\textasciitilde/git/andy/crypto/} \textbf{are stale and
+inconsistent with the published study}, and any analysis built on them
+would have been confidently wrong:
+
+\vspace{0.4em}
+\centering
+\begin{tabular}{@{}llll@{}}
+    \toprule
+    \textbf{File} & \textbf{Contains} & \textbf{Study says} & \\
+    \midrule
+    \texttt{timing\_BTCUSD.csv} & $+462.8\%$ & $+462.7\%$ & \textcolor{green}{matches} \\
+    \texttt{timing\_SOLUSD.csv} & $+201.8\%$ & $+7{,}691\%$ & \textcolor{red}{365-day run} \\
+    \texttt{timing\_HG=F.csv}   & $+15.0\%$  & $+97.0\%$    & \textcolor{red}{wrong run} \\
+    \texttt{timing\_NG=F.csv}   & $+88.4\%$  & $+309.9\%$   & \textcolor{red}{wrong run} \\
+    \bottomrule
+\end{tabular}
+
+\vspace{0.5em}
+\raggedright
+The Solana file holds the \textbf{365-day} lookback --- the one variant
+that produced \emph{negative} alpha --- not the 180-day run the study
+recommends. Copper and gas match neither.
+
+\vspace{0.4em}
+\texttt{cap\_sweep.py} therefore ignores those files entirely and
+refetches prices into its own \texttt{cache/} directory. Leftover
+result files from a parameter sweep are not a data source. They should
+be regenerated or deleted before they mislead someone.
+\end{resultbox}
+
+\section{Four Phases, With Gates}
+
+Each phase has an exit criterion. The point of a gate is that it can
+fail --- if a criterion is not met, the answer is to stop, not to
+proceed while noting a concern.
+
+\vspace{0.5em}
+\begin{tabular}{@{}p{1.5cm}p{3.1cm}p{4.0cm}p{4.6cm}@{}}
+    \toprule
+    \textbf{Phase} & \textbf{What runs} & \textbf{Kim does} & \textbf{Gate to pass} \\
+    \midrule
+    \textbf{1}\newline 1 week &
+    Reports on Robin's box, paper only, no keys &
+    Step 1 (Oracle); nothing else &
+    A report lands unattended on Monday; signals match a hand-check \\[0.4em]
+    \textbf{2}\newline 4--12 weeks &
+    Execution layer dry-run; ETF tracking measured vs futures &
+    Steps 2--3 (accounts, paper keys) &
+    Dry-run orders sane every week; backtest confirms the cap; ETF decay measured \\[0.4em]
+    \textbf{3}\newline 4 weeks &
+    Live crypto leg only, \$50 order cap &
+    Step 4 (fund small), live keys &
+    Broker NAV tracks paper NAV within a few percent; no failed orders \\[0.4em]
+    \textbf{4}\newline ongoing &
+    Full size; copper/gas added if Phase 2 justified it &
+    Increase funding; hardware wallet &
+    Reviewed quarterly against the mind-changers below \\
+    \bottomrule
+\end{tabular}
+
+\vspace{0.8em}
+\begin{resultbox}[The gate on Phase 2 is the one that matters]{warn}
+One of the two gaps here is now closed. The four-asset backtest with the
+Solana cap has been run --- Section~\ref{sec:cap} --- and it supports the
+design: capped at $25\%$, \$10{,}000 becomes \$158{,}908 over 5.35 years
+with a $-38.7\%$ worst drawdown, against \$95{,}575 for the three-asset
+portfolio. Uncapped is worse on \emph{both} counts.
+
+\vspace{0.5em}
+What Phase 2 still has to establish is the part no backtest can tell us:
+\textbf{how much of that survives in instruments we can actually buy.}
+The signals are measured on \texttt{HG=F} and \texttt{NG=F}; the orders
+would be in \texttt{CPER} and \texttt{UNG}, which carry roll decay the
+backtest never saw. Until that difference is measured on live prices,
+the copper and gas legs stay on paper.
+\end{resultbox}
+
+\section{What Would Stop Us}
+
+Stated in advance, so they cannot be rationalised away later:
+
+\begin{itemize}[leftmargin=2em]
+    \item ETF tracking error eats the copper or gas alpha
+          $\Rightarrow$ drop that leg rather than trade it hoping.
+    \item Signal overlap between the four assets turns out to be high
+          $\Rightarrow$ the recycling rationale is void; rebuild the
+          allocation logic.
+    \item UNG's roll decay eats the natural gas alpha $\Rightarrow$ drop
+          the gas leg or find a different instrument. Do not trade it
+          hoping.
+    \item Live results diverge materially from paper over a quarter
+          $\Rightarrow$ stop and find out why before adding money.
+    \item Results prove sensitive to the lookback window $\Rightarrow$
+          treat the whole thing as overfitted. A real effect should not
+          require the knob set to exactly 180.
+    \item Kim cannot comfortably tolerate a 30\% drawdown in practice
+          rather than in principle $\Rightarrow$ reduce size until he
+          can. This is a legitimate reason and needs no other
+          justification.
+\end{itemize}
+
+\section{Command Reference}
+\label{sec:manifest}
+
+\begin{codebox}[Everything, in one place]
+\begin{lstlisting}[style=shell]
+# --- Deploy (from the Mac) -------------------------------------------
+cd ~/git/andy/crypto/portfolio
+bash install_oci.sh                    # install + venv + cron + smoke test
+OCI_HOST=kim-oci bash install_oci.sh   # ... to a different host
+
+# --- Check on it ------------------------------------------------------
+ssh oci 'cat /home/ubuntu/portfolio/reports/latest.json'
+ssh oci 'cd /home/ubuntu/portfolio && ./venv/bin/python signals.py'
+ssh oci 'tail -40 /home/ubuntu/portfolio/logs/cron.log'
+ssh oci 'crontab -l | grep -A2 Recycling'
+ssh oci '/home/ubuntu/portfolio/healthcheck.sh'     # alive and on schedule?
+ssh oci 'cat /home/ubuntu/portfolio/heartbeat.txt'  # last keepalive
+ssh oci 'grep CRON /var/log/syslog | tail -5'
+
+# --- Reports ----------------------------------------------------------
+bash fetch_report.sh                   # newest, opens in Skim
+bash fetch_report.sh 2026-W35          # a specific week
+ssh oci 'ls -lt /home/ubuntu/portfolio/reports | head'
+
+# --- Run out of band --------------------------------------------------
+ssh oci '/home/ubuntu/portfolio/run_weekly.sh'
+ssh oci "env -i /bin/bash -c '/home/ubuntu/portfolio/run_weekly.sh'"  # as cron sees it
+
+# --- Free-tier hygiene (do this after any OCI console work) -----------
+# Orphaned volumes are the only way this costs money. 200 GB total cap.
+oci bv boot-volume list --compartment-id <tenancy-ocid> \
+    --availability-domain "drxR:AP-MELBOURNE-1-AD-1" --all
+oci bv volume list --compartment-id <tenancy-ocid> --all
+\end{lstlisting}
+\end{codebox}
+
+\subsection*{File manifest}
+
+\vspace{0.3em}
+\begin{tabular}{@{}p{4.6cm}p{9.3cm}@{}}
+    \toprule
+    \textbf{File} & \textbf{Purpose} \\
+    \midrule
+    \texttt{signals.py} &
+    Momentum ratios for the four assets; recycling weights with the
+    Solana cap. Arithmetic identical to \texttt{momentum\_single.py}. \\
+    \texttt{weekly\_report.py} &
+    Rebuilds the paper equity curve from scratch; renders the two-page
+    PDF, \texttt{latest.pdf} and \texttt{latest.json}. \\
+    \texttt{run\_weekly.sh} &
+    Cron entry point. Absolute paths, logs, prunes to 52 reports. \\
+    \texttt{install\_oci.sh} &
+    Idempotent deploy from the Mac: copy, venv, smoke test, cron. \\
+    \texttt{fetch\_report.sh} &
+    Pull the latest PDF back to the Mac and open it. \\
+    \texttt{keepalive.sh} &
+    Burns one core for 5 min every 30 min so Oracle does not reclaim the
+    instance; writes \texttt{heartbeat.txt}. \\
+    \texttt{healthcheck.sh} &
+    One command answering ``is it alive and on schedule?''. Non-zero exit
+    if not. \\
+    \texttt{cap\_sweep.py} &
+    Regenerates momentum from source data and sweeps the Solana cap.
+    Produced the numbers in Section~\ref{sec:cap}. \\
+    \texttt{make\_figure.py} &
+    Self-contained: fetches prices and draws the three-way portfolio
+    comparison. Listed in full in \texttt{algorithm.pdf}. \\
+    \texttt{.env} (server only) &
+    API keys and risk limits. \texttt{chmod 600}, never in git. \\
+    \texttt{execute.py} &
+    \textcolor{red}{Not yet written.} Order placement. Phase 2. \\
+    \bottomrule
+\end{tabular}
+
+\vspace{1.5em}
+\begin{resultbox}[]{warn}
+\begin{center}
+\Large\bfseries Nothing in this document is financial advice.
+\end{center}
+\vspace{0.3em}
+\centering
+It is a deployment runbook for a strategy that has been backtested and
+not yet validated live. The strategy's own caveats are in
+\texttt{concepts.pdf} and \texttt{kim.pdf}, and they are substantial.
+Read them before Step 4.
+\end{resultbox}
+
+
+% ══════════════════════════════════════════════════════════════════
+\newpage
+\part{Appendix: The Complete Code}
+
+Everything Claude needs to implement the copper--gas--bitcoin--sol
+strategy is listed here in full. Nothing is elided.
+
+\begin{resultbox}[These listings cannot go stale]{strong}
+The listings below are pulled from the working files at compile time
+via \texttt{\textbackslash lstinputlisting}. They are not copies. If a
+script changes and this document is rebuilt, the appendix changes with
+it --- so the PDF and the code can never silently disagree.
+
+\vspace{0.5em}
+Source of truth:
+\texttt{\textasciitilde/git/andy/crypto/portfolio/}.
+Recompile with \texttt{tectonic oci.tex} after any edit.
+\end{resultbox}
+
+\vspace{0.5em}
+\begin{tabular}{@{}p{3.6cm}rp{9.4cm}@{}}
+    \toprule
+    \textbf{File} & \textbf{Lines} & \textbf{Role} \\
+    \midrule
+    \texttt{signals.py}        & 229 & Momentum ratios; recycling weights with the SOL cap \\
+    \texttt{weekly\_report.py} & 413 & Paper equity curve; the two-page PDF report \\
+    \texttt{cap\_sweep.py}     & 213 & Cap selection backtest (Section~\ref{sec:cap}) \\
+    \texttt{run\_weekly.sh}    & 14  & Cron entry point \\
+    \texttt{keepalive.sh}      & 47  & Oracle idle-reclamation defence + heartbeat \\
+    \texttt{healthcheck.sh}    & 83  & Liveness and schedule check \\
+    \texttt{install\_oci.sh}   & 72  & One-command deploy from the Mac \\
+    \texttt{fetch\_report.sh}  & 25  & Pull the latest report back \\
+    \midrule
+    \textbf{Total}             & \textbf{1{,}096} & \\
+    \bottomrule
+\end{tabular}
+
+\vspace{0.8em}
+\begin{resultbox}[What is deliberately NOT here]{fail}
+\texttt{execute.py} --- the code that places real orders --- is not in
+this appendix because it has not been written, and it should not be
+written until Phase~2 has run clean. Its specification is in
+Section~\ref{sec:exec}, and the build order given there
+(read-only $\rightarrow$ dry-run $\rightarrow$ \$50 cap $\rightarrow$
+full size) matters more than the code itself.
+
+\vspace{0.4em}
+Also absent: \texttt{.env}, which holds the API keys. It is created on
+the server by hand, \texttt{chmod 600}, and never enters git or any
+document. See Section~\ref{sec:keys}.
+\end{resultbox}
+
+% ──────────────────────────────────────────────────────────────────
+\section{signals.py}
+
+The heart of the system. The momentum arithmetic here is byte-for-byte
+equivalent to \texttt{momentum\_single.py}, which is what makes live
+signals comparable with the backtest. Note two deliberate choices: a
+missing price feed produces \emph{cash}, never a position; and the
+signal instrument is kept distinct from the traded instrument.
+
+\lstinputlisting[style=py]{portfolio/signals.py}
+
+% ──────────────────────────────────────────────────────────────────
+\section{weekly\_report.py}
+
+Rebuilds the entire paper equity curve from scratch on every run, then
+renders the report with \texttt{matplotlib} --- no LaTeX on the server,
+so there is no compile step that can fail at 7am.
+
+\lstinputlisting[style=py]{portfolio/weekly_report.py}
+
+% ──────────────────────────────────────────────────────────────────
+\section{cap\_sweep.py}
+
+Produced the cap decision in Section~\ref{sec:cap}. It refetches prices
+into its own \texttt{cache/} rather than trusting the stale
+\texttt{timing\_*.csv} files, and handles the crypto/futures calendar
+mismatch by treating the 7-day crypto calendar as master and
+forward-filling futures closes.
+
+\lstinputlisting[style=py]{portfolio/cap_sweep.py}
+
+% ──────────────────────────────────────────────────────────────────
+\section{run\_weekly.sh}
+
+The cron entry point. Absolute paths throughout, because cron's
+\texttt{PATH} is nearly empty and it does not read a shell profile.
+
+\lstinputlisting[style=shell]{portfolio/run_weekly.sh}
+
+% ──────────────────────────────────────────────────────────────────
+\section{keepalive.sh}
+
+Stops Oracle reclaiming the instance, and writes the heartbeat used by
+\texttt{healthcheck.sh}. The heartbeat is written \emph{before} the CPU
+burn so the timestamp survives even if the burn is killed.
+
+\lstinputlisting[style=shell]{portfolio/keepalive.sh}
+
+% ──────────────────────────────────────────────────────────────────
+\section{healthcheck.sh}
+
+Answers ``is it alive and on schedule?'' and exits non-zero if not.
+
+\lstinputlisting[style=shell]{portfolio/healthcheck.sh}
+
+% ──────────────────────────────────────────────────────────────────
+\section{install\_oci.sh}
+
+Idempotent deploy from the Mac. Re-running it is the normal way to ship
+a change. It runs one report immediately, so a broken install is
+discovered now rather than next Monday.
+
+\lstinputlisting[style=shell]{portfolio/install_oci.sh}
+
+% ──────────────────────────────────────────────────────────────────
+\section{fetch\_report.sh}
+
+Pulls the latest report back to the Mac and opens it in Skim.
+
+\lstinputlisting[style=shell]{portfolio/fetch_report.sh}
+
+% ------------------------------------------------------------------
+\section{make\_figure.py}
+
+Self-contained: fetches prices from Yahoo Finance and draws the
+three-way portfolio comparison with no dependency on any other file
+here. Presented with a walkthrough in \texttt{algorithm.pdf}.
+
+\lstinputlisting[style=py]{portfolio/make_figure.py}
+
+\end{document}
