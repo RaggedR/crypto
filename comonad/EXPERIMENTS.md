@@ -15,6 +15,10 @@ watching PC1 hold-out numbers. Per-window params are honest (prior-year only),
 but the pipeline has absorbed information through our choices. Nothing here is
 "bankable" until a *frozen* design runs once on an untouched asset.
 
+> **RESULT OF THE CLEAN TEST (§9): REFUTED.** The frozen design did NOT
+> reproduce on untouched assets. The +77.9% PC1 headline (§8) is an artifact of
+> tuning on PC1. Read §9 before trusting anything above it.
+
 ---
 
 ## 0. Comonad core — PASS
@@ -133,11 +137,34 @@ honest walk-forward. The β=0→reversion swing (−52% → +78%) is the whole s
 (§standing caveat), (b) **zero transaction costs** (112 trades ≈ ~11% undeducted
 drag at 0.1% round-trip), (c) one series / one asset class, (d) mild survivorship.
 
+## 9. CLEAN TEST — frozen design on unseen assets — **REFUTED**
+`cabal run walkforward -- oos/*.csv` and `oos/OOSPC1.csv`
+Design frozen at commit 7b579f2. 8 Binance coins never in the universe, never in
+the PCA, never seen (XTZ THETA HBAR ZIL BAT ENJ ZRX ICX), + a market factor built
+from them (OOSPC1). Pre-registered hypothesis: p/slope + reversion beats both
+buy&hold and β=0.
+
+Individual coins (p/slope), mean Sharpe: market −0.08, β=0 **+0.08**, reversion **−0.09**; passed 3/8.
+Unseen market factor OOSPC1 (p/slope): market −0.16, β=0 −0.10, reversion −0.01 (ret −51.5%, maxDD −87.5%).
+
+**Verdict: REFUTED.** The +77.9% / Sharpe 0.53 of §8 did not reproduce on any
+untouched asset. Reversion-to-m is the *worst* of the three on individual coins
+and only trivially least-bad (still −51%) on a fresh market factor. β=0 — which
+*lost* −52% on PC1 — is as good or better than reversion everywhere out-of-sample.
+The ranking inverted: the signature of overfitting, not a shrunk-but-real effect.
+
+What survived: the comonad framing is sound; the only durable property of the
+bookmaker model across the whole project is drawdown/exit timing, not return
+generation; reversion-to-m is NOT a validated edge. The harness correctly
+falsified its own best result — that is the result.
+
 ---
 
 ## Open / next
-- **The clean test:** freeze this exact design and run once on an untouched asset
-  — the commodities/gas tape, or PC2/PC3 / individual coins. Converts "promising
-  on PC1" into trustworthy-or-refuted.
-- Add transaction costs to the backtest.
-- Rolling-PCA PC1 (remove the small full-sample loading look-ahead).
+- **Clean test done (§9) — refuted.** Do NOT present the PC1 +78% as a finding.
+- Transaction costs never added (would only worsen everything).
+- If pursued further: the honest unit is a *market factor* (not single coins),
+  and any new idea must be pre-registered and tested on held-out assets BEFORE
+  the numbers are seen — the one discipline that worked here.
+- The bookmaker model's real, repeatable property (drawdown reduction) is worth
+  studying on its own terms, separately from return-beating claims.

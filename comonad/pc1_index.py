@@ -23,15 +23,19 @@ rolling-PCA refinement would remove even that; deferred as negligible.
 import csv
 import glob
 import os
+import sys
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 STILL_TRADING_AFTER = "2026-10-01"
+# optional argv: [1]=data dir (default data), [2]=output csv (default data/PC1.csv)
+DATA_DIR = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "data")
+OUT_PATH = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, "data", "PC1.csv")
 
 
 def load():
     series = {}
-    for path in sorted(glob.glob(os.path.join(HERE, "data", "*.csv"))):
+    for path in sorted(glob.glob(os.path.join(DATA_DIR, "*.csv"))):
         sym = os.path.basename(path)[:-4]
         rows = {}
         with open(path) as f:
@@ -73,7 +77,7 @@ def main():
     price = 100.0 * np.exp(np.cumsum(idx_ret))
     dollar_vol = (vols * closes).sum(axis=1)[1:]  # total $-volume, aligned to rets
 
-    out = os.path.join(HERE, "data", "PC1.csv")
+    out = OUT_PATH
     with open(out, "w", newline="") as f:
         wtr = csv.writer(f)
         wtr.writerow(["date", "open", "high", "low", "close", "volume"])

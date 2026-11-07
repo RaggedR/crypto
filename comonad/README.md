@@ -10,18 +10,20 @@ That *is* the backtest.
 > [`EXPERIMENTS.md`](EXPERIMENTS.md)** — read that for the real state. This
 > README explains the design; the notebook records what we found.
 >
-> **Headline result (honest walk-forward on PC1, 2022-07 → 2026-11):** the
-> two-sided rule `p/slope` with a reversion-to-`m` forward map returned
-> **+77.9%** (CAGR +14.1%, Sharpe 0.53, maxDD −57%, in-market 33%) against a
-> market that **lost −38%** (Sharpe 0.16, maxDD −81%). The reversion term is
-> the whole story: drift-only (β=0) *lost* −52.5%.
+> **Status: the headline result was REFUTED by a clean out-of-sample test.**
+> On PC1 (the series we tuned on), `p/slope` + reversion-to-`m` returned +77.9%
+> vs a −38% market — but the design was chosen while watching PC1, so we froze
+> it (commit 7b579f2) and ran it once on **unseen** assets (8 coins never in the
+> universe, + a market factor built from them). It did **not** reproduce:
+> reversion averaged Sharpe −0.09 on unseen coins (worst of three) and −51.5%
+> return on the fresh market factor. The β=0 baseline — which *lost* −52% on PC1
+> — was as good or better everywhere out-of-sample. **The PC1 +78% is an
+> overfitting artifact, not a validated edge.** See [`EXPERIMENTS.md`](EXPERIMENTS.md) §8–9.
 >
-> **Standing caveat:** the design was chosen while watching PC1 hold-out
-> numbers, so this is "promising on the data we tuned on," **not** bankable.
-> It also assumes **zero transaction costs**. The clean test — a frozen design
-> on an untouched asset — has not been run yet. Several earlier approaches
-> *failed* (return-regression: negative out-of-sample R²; drift-only stencils:
-> causal-in-disguise); see the notebook.
+> **What held up:** the comonad framing and harness are sound; the discipline
+> (commit the record, then run the falsifying test) worked — it caught the
+> overfit. The only durable property of the bookmaker model across the project
+> is drawdown/exit timing, not return generation.
 
 ## The one idea, three readings
 

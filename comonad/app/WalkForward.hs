@@ -14,7 +14,8 @@ module Main (main) where
 
 import Finance
 import Stencil
-import Control.Monad (forM)
+import Control.Monad (forM, forM_)
+import System.Environment (getArgs)
 import Text.Printf (printf)
 
 lookbackDays, driftWin :: Int
@@ -124,13 +125,55 @@ bottomLine bars cfg = do
   line "two-sided, beta=0"   rep0
   line "two-sided, reversion" repB
 
+-- Compact one-line-per-asset summary, for the frozen-design clean test on
+-- unseen assets. Same stitch / windows / grids as everything above; only the
+-- input file and the output format differ (no parameters change).
+oosLine :: (Field, Contrast) -> (String, [Bar]) -> IO (Double, Double, Double)
+oosLine cfg (name, bars) = do
+  let (sb, ssB) = stitch bars cfg betaPos
+      (_,  ss0) = stitch bars cfg [0.0]
+      repB = backtest sb ssB
+      rep0 = backtest sb ss0
+      mkt  = buyHold sb
+  printf "  %-9s | mkt %+5.2f %+7.1f%% | b=0 %+5.2f %+7.1f%% | revers %+5.2f %+7.1f%% maxDD %5.1f%% in %3.0f%% | %s\n"
+    name
+    (repSharpe mkt) (repTotalRet mkt*100)
+    (repSharpe rep0) (repTotalRet rep0*100)
+    (repSharpe repB) (repTotalRet repB*100) (repMaxDD repB*100) (repTimeIn repB*100)
+    (if repSharpe repB > repSharpe mkt && repSharpe repB > repSharpe rep0 then "PASS" else "fail")
+  return (repSharpe mkt, repSharpe rep0, repSharpe repB)
+
+cleanTest :: [String] -> IO ()
+cleanTest paths = do
+  coins <- forM paths $ \p -> do
+    bars <- parseCSV <$> readFile p
+    let base = reverse (takeWhile (/= '/') (reverse p))
+    return (take (length base - 4) base, bars)
+  putStrLn "== CLEAN TEST: frozen design on UNSEEN assets =="
+  putStrLn "hypothesis (pre-registered): p/slope + reversion beats both buy&hold and beta=0.\n"
+  forM_ [(FP, Slope), (FP, Curv)] $ \cfg -> do
+    printf "--- config %s (mkt=buy&hold, b=0=drift-only, revers=reversion-to-m) ---\n"
+      (configName cfg)
+    rs <- mapM (oosLine cfg) coins
+    let mean xs = sum xs / fromIntegral (length xs)
+        pass = length (filter (\(m,b,r) -> r > m && r > b) rs)
+    printf "  MEAN      | mkt %+5.2f            | b=0 %+5.2f            | revers %+5.2f                              | %d/%d PASS\n\n"
+      (mean (map (\(m,_,_) -> m) rs))
+      (mean (map (\(_,b,_) -> b) rs))
+      (mean (map (\(_,_,r) -> r) rs))
+      pass (length rs)
+
 main :: IO ()
 main = do
-  csv <- readFile "data/PC1.csv"
-  let bars = parseCSV csv
-  printf "== multi-regime walk-forward on PC1 :: %d days %s -> %s ==\n"
-    (length bars) (barDate (head bars)) (barDate (last bars))
-  printf "lookback %d, driftWin %d, 6-month holdouts, validation = prior year\n" lookbackDays driftWin
-  mapM_ (evalConfig bars) [(FP, Slope), (FP, Curv)]
-  putStrLn "\nRead the BULL rows: if beta>0 holds up there too, m carries info beyond defensiveness."
-  mapM_ (bottomLine bars) [(FP, Slope), (FP, Curv)]
+  args <- getArgs
+  case args of
+    (_:_) -> cleanTest args                    -- OOS mode: CSV paths given
+    []    -> do                                -- default: the PC1 study
+      csv <- readFile "data/PC1.csv"
+      let bars = parseCSV csv
+      printf "== multi-regime walk-forward on PC1 :: %d days %s -> %s ==\n"
+        (length bars) (barDate (head bars)) (barDate (last bars))
+      printf "lookback %d, driftWin %d, 6-month holdouts, validation = prior year\n" lookbackDays driftWin
+      mapM_ (evalConfig bars) [(FP, Slope), (FP, Curv)]
+      putStrLn "\nRead the BULL rows: if beta>0 holds up there too, m carries info beyond defensiveness."
+      mapM_ (bottomLine bars) [(FP, Slope), (FP, Curv)]
