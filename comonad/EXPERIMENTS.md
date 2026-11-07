@@ -158,6 +158,23 @@ bookmaker model across the whole project is drawdown/exit timing, not return
 generation; reversion-to-m is NOT a validated edge. The harness correctly
 falsified its own best result — that is the result.
 
+**In dollars — $10,000 in, out-of-sample (2022-07 → 2026-11, zero costs):**
+
+| $10k into… | ends at | outcome |
+|---|---|---|
+| strategy, unseen market factor (OOSPC1) | ~$4,850 | **lost ~$5,150** |
+| strategy, equal split across the 8 unseen coins | ~$5,000 | **lost ~$5,000** |
+| buy & hold, unseen market factor | ~$1,710 | lost ~$8,290 |
+| buy & hold, 8 coins equally | ~$2,670 | lost ~$7,330 |
+| *strategy on PC1 (overfit — do NOT believe)* | *$17,790* | *the mirage; gap to ~$5k is the overfit, priced* |
+
+So out-of-sample you would have **lost about half** — but **less than buy & hold**
+(which lost ~75-83%). That "win" is *pure drawdown-timing* (in cash ~half the time
+during a crash), which the β=0 drift-only rule delivers just as well — it is NOT
+the reversion edge, which was refuted. Losing less than a −80% market by sitting
+out half of it is damage control, not an investment thesis. Costs would worsen all
+strategy rows; outcome swings wildly by coin (HBAR +, BAT −94%).
+
 ---
 
 ## Open / next

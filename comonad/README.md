@@ -24,6 +24,12 @@ That *is* the backtest.
 > (commit the record, then run the falsifying test) worked — it caught the
 > overfit. The only durable property of the bookmaker model across the project
 > is drawdown/exit timing, not return generation.
+>
+> **In dollars:** $10,000 into the strategy out-of-sample would have ended at
+> **~$5,000** (lost ~half) — *less* than buy-and-hold (~$1,700–$2,700), but still
+> a loss. The outperformance is pure crash-avoidance (in cash ~half the time),
+> which the β=0 rule also gives; it is not the refuted reversion edge. Damage
+> control, not a thesis. See [`EXPERIMENTS.md`](EXPERIMENTS.md) §9.
 
 ## The one idea, three readings
 
